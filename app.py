@@ -5,109 +5,60 @@ from dash import Dash, html, dcc, Input, Output
 import dash_bootstrap_components as dbc
 
 ################ DATASET ########################
-df_acq = pd.read_csv("acquisitions_update_2021.csv")
-df_acq = df_acq.replace("-", np.nan)
+df_acq = pd.read_csv("acquisitions_update_2021.csv").replace("-", np.nan)
 df_acq['Acquisition Year'] = pd.to_numeric(df_acq['Acquisition Year'], errors='coerce')
 df_acq['Acquisition Price'] = pd.to_numeric(df_acq['Acquisition Price'], errors='coerce')
-df_acq = df_acq.rename({'Acquisition Price': 'Acquisition Price(Billions)'}, axis=1)
+df_acq.rename({'Acquisition Price': 'Acquisition Price(Billions)'}, axis=1, inplace=True)
 
 ################ KPIS ##################################
 total_parent_companies = df_acq['Parent Company'].nunique()
 total_acquired_companies = df_acq['Acquired Company'].nunique()
+total_countries = df_acq['Country'].nunique()
 
 ################## GRAFICOS #####################
-fig1 = px.histogram(
-    df_acq,
-    x="Acquisition Year",
-    title="Distribution of Acquisitions by Year",
-    labels={"Acquisition Year": "Year of Acquisition"},
-    nbins=45,
-    color_discrete_sequence=["#7b86ed"], 
-)
-fig1.update_layout(title_x=0.5)
+def create_bar_chart(data, title, x, y, color, hide_y_labels=False):
+    fig = px.bar(data, title=title, x=x, y=y, color=color, color_discrete_sequence=px.colors.sequential.Viridis)
+    fig.update_layout(title_x=0.5)
+    if hide_y_labels:
+        fig.update_yaxes(showticklabels=False)  # Oculta las etiquetas del eje Y
+    return fig
 
-companies = df_acq['Parent Company'].value_counts()
-companies_df = companies.to_frame().reset_index()
-companies_df = companies_df.rename({'count': 'Acquisitions'}, axis=1)
-fig2 = px.bar(
-    companies_df, 
-    title="Companies with Most Acquisitions", 
-    x='Parent Company', 
-    y='Acquisitions', 
-    color='Parent Company', 
-    color_discrete_sequence=px.colors.sequential.Viridis,  # Usar una paleta bonita
-)
-fig2.update_layout(title_x=0.5)
+def create_histogram(data, title, x, nbins):
+    fig = px.histogram(data, x=x, title=title, nbins=nbins, color_discrete_sequence=px.colors.sequential.Viridis)
+    fig.update_layout(title_x=0.5)
+    fig.update_yaxes(title="Companies Acquired")  # Renombrar el eje Y
+    return fig
 
-business_types = df_acq["Business"].value_counts().reset_index()
-business_types = business_types.rename({"count": "Number of Companies"}, axis=1)
-business_types = business_types.head(25)
-fig3 = px.bar(
-    business_types, 
-    title="Businesses Acquired", 
-    x='Number of Companies', 
-    y='Business', 
-    color='Business',
-    color_discrete_sequence=px.colors.sequential.Viridis,  # Colores secuenciales agradables
-)
-fig3.update_layout(title_x=0.5)
+fig1 = create_histogram(df_acq, "Distribution of Acquisitions by Year", "Acquisition Year", 45)
 
-new_products = df_acq["Derived Products"].value_counts().reset_index()
-new_products = new_products.rename({"count": "Number of Companies"}, axis=1)
-new_products = new_products.head(25)
-fig4 = px.bar(
-    new_products, 
-    title="Products Derived from Acquisitions", 
-    x='Number of Companies', 
-    y='Derived Products', 
-    color='Derived Products', 
-    color_discrete_sequence=px.colors.sequential.Viridis,
-)
-fig4.update_layout(title_x=0.5)
+fig2 = create_bar_chart(
+    df_acq['Parent Company'].value_counts().reset_index().rename({'count': 'Acquisitions'}, axis=1),
+    "Companies with Most Acquisitions", "Parent Company", "Acquisitions", "Parent Company")
 
-countries = df_acq["Country"].value_counts().reset_index()
-countries = countries.rename({"count": "Number of Companies"}, axis=1)
-countries = countries.head(25)
-fig5 = px.bar(
-    countries, 
-    title="Acquisitions by Country", 
-    x='Number of Companies', 
-    y='Country', 
-    color='Country', 
-    color_discrete_sequence=px.colors.qualitative.Set2, 
-)
-fig5.update_layout(title_x=0.5)
+fig3 = create_bar_chart(
+    df_acq['Business'].value_counts().reset_index().head(25).rename({'count': 'Number of Companies'}, axis=1),
+    "Businesses Acquired", "Number of Companies", "Business", "Business", hide_y_labels=True)
 
-most_valuable = df_acq.sort_values("Acquisition Price(Billions)", ascending=False).head(10)
-fig6 = px.bar(
-    most_valuable, 
-    title="Most Expensive Acquisitions", 
-    x='Acquired Company', 
-    y='Acquisition Price(Billions)', 
-    color='Acquired Company', 
-    hover_data=['Parent Company'],
-    color_discrete_sequence=px.colors.sequential.Cividis,
-)
-fig6.update_layout(title_x=0.5)
+fig4 = create_bar_chart(
+    df_acq['Derived Products'].value_counts().reset_index().head(25).rename({'count': 'Number of Companies'}, axis=1),
+    "Products Derived from Acquisitions", "Number of Companies", "Derived Products", "Derived Products", hide_y_labels=True)
 
-##################### INICIAR APP ###############################
+fig5 = create_bar_chart(
+    df_acq['Country'].value_counts().reset_index().head(25).rename({'count': 'Number of Companies'}, axis=1),
+    "Acquisitions by Country", "Number of Companies", "Country", "Country", hide_y_labels=True)
+
+fig6 = create_bar_chart(
+    df_acq.sort_values("Acquisition Price(Billions)", ascending=False).head(10),
+    "Most Expensive Acquisitions", "Acquired Company", "Acquisition Price(Billions)", "Acquired Company")
+
+##################### APP ###############################
 app = Dash(
     __name__,
     title="Acquisitions Insights",
     external_stylesheets=[
         dbc.themes.BOOTSTRAP,
-        "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200",  # Icons
-        "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",  # Font
+        "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Roboto:wght@400;700&display=swap",
     ],
-)
-
-##################### WIDGETS ####################################
-parent_company = df_acq['Parent Company'].dropna().unique()
-pc_acq = dcc.Dropdown(
-    id="pc_acq",
-    options=[{"label": company, "value": company} for company in parent_company],
-    value=parent_company[0],
-    clearable=False
 )
 
 ##################### CALLBACKS ##################################
@@ -119,80 +70,81 @@ pc_acq = dcc.Dropdown(
 )
 def update_figures(selected_company):
     filtered_df = df_acq[df_acq['Parent Company'] == selected_company]
-
-    # Figura 1 (Distribución por año)
-    fig1_filtered = px.histogram(
-        filtered_df,
-        x="Acquisition Year",
-        title=f"Acquisitions by Year for {selected_company}",
-        labels={"Acquisition Year": "Year of Acquisition"},
-        nbins=45,
-        color_discrete_sequence=["#007bff"],
+    
+    # Verificar si el DataFrame está vacío o si no hay datos en el gráfico de países
+    if filtered_df.empty or filtered_df['Country'].isna().all():
+        fig5_filtered = {
+            "layout": {
+                "xaxis": {"visible": False},
+                "yaxis": {"visible": False},
+                "annotations": [
+                    {
+                        "text": "Please, note that countries of acquisitions were not disclosed by this Parent Company",
+                        "xref": "paper",
+                        "yref": "paper",
+                        "showarrow": False,
+                        "font": {"size": 16}
+                    }
+                ]
+            }
+        }
+    else:
+        fig5_filtered = create_bar_chart(
+            filtered_df['Country'].value_counts().reset_index().rename(
+                {'count': 'Number of Companies'}, axis=1
+            ),
+            f"Acquisitions by Country for {selected_company}",
+            "Number of Companies", "Country", "Country", hide_y_labels=True 
+        )
+    
+    return (
+        create_histogram(
+            filtered_df,
+            f"Acquisitions by Year for {selected_company}",
+            "Acquisition Year",
+            45
+        ),
+        fig5_filtered,
+        create_bar_chart(
+            filtered_df.sort_values("Acquisition Price(Billions)", ascending=False).head(10),
+            f"Most Expensive Acquisitions by {selected_company}",
+            "Acquired Company", "Acquisition Price(Billions)", "Acquired Company"
+        )
     )
-    fig1_filtered.update_layout(title_x=0.5)
-
-    # Figura 5 (Adquisiciones por país)
-    countries = filtered_df["Country"].value_counts().reset_index()
-    countries = countries.rename({"count": "Number of Companies"}, axis=1)
-    fig5_filtered = px.bar(
-        countries,
-        title=f"Acquisitions by Country for {selected_company}",
-        x='Number of Companies',
-        y='Country',
-        color='Country',
-        color_discrete_sequence=px.colors.qualitative.Set2,
-    )
-    fig5_filtered.update_layout(title_x=0.5)
-
-    # Figura 6 (Adquisiciones más caras)
-    most_valuable = filtered_df.sort_values("Acquisition Price(Billions)", ascending=False).head(10)
-    fig6_filtered = px.bar(
-        most_valuable,
-        title=f"Most Expensive Acquisitions by {selected_company}",
-        x='Acquired Company',
-        y='Acquisition Price(Billions)',
-        color='Acquired Company',
-        color_discrete_sequence=px.colors.sequential.Cividis,
-    )
-    fig6_filtered.update_layout(title_x=0.5)
-
-    return fig1_filtered, fig5_filtered, fig6_filtered
-
 ##################### LAYOUT #####################################
-app.layout = html.Div([
-    html.H1("Acquisitions Insights", className="text-center fw-bold m-2", style={"text-align": "center", "color": "#000", "padding-bottom": "30px"}),
-
-    dcc.Tabs([dcc.Tab(label='Acquisitions Insights', children=[html.Div([
-        # KPIs
-        html.Div([
-            html.Div([
-                html.H4("Total Parent Companies"),
-                html.H2(total_parent_companies, id="total-parent-kpi", style={"color": "#007bff"})
-            ], className="metric-box"),
-
-            html.Div([
-                html.H4("Total Acquired Companies"),
-                html.H2(total_acquired_companies, id="total-acquired-kpi", style={"color": "#28a745"})
-            ], className="metric-box"),
-        ], className="kpi-container", style={"display": "flex", "justify-content": "space-around", "padding": "20px"}),
-
-        # Gráficos
-        html.Div([dcc.Graph(figure=fig) for fig in [fig1, fig2, fig3, fig4, fig5, fig6]], style={"padding": "20px"}),
-    ]),
-]),
-
-        dcc.Tab(label='Analysis per Company', children=[
-            html.Div([
-                html.H3("Filter by Parent Company"),
-                pc_acq,  # Dropdown para seleccionar la compañía
-            ], style={"padding": "20px"}),
-
-            html.Div([dcc.Graph(id="fig1_filtered")], style={"padding": "20px"}),
-            html.Div([dcc.Graph(id="fig5_filtered")], style={"padding": "20px"}),
-            html.Div([dcc.Graph(id="fig6_filtered")], style={"padding": "20px"}),
+app.layout = html.Div(
+    style={"background-color": "#f8f9fa"},
+    children=[
+        dbc.NavbarSimple(
+            brand="Top Companies Acquisitions Analysis",
+            brand_href="/",
+            color="dark",
+            dark=True,
+        ),
+        dcc.Tabs([
+            dcc.Tab(label='Acquisitions Insights', children=[
+                dbc.Container([
+                    dbc.Row([
+                        dbc.Col(html.Div([html.H2(total_parent_companies, className="text-center"), html.H4("Parent Companies", className="text-center")], className="p-3 bg-light rounded-3 shadow-sm"), md=4),
+                        dbc.Col(html.Div([html.H2(total_acquired_companies, className="text-center"), html.H4("Acquired Companies", className="text-center")], className="p-3 bg-light rounded-3 shadow-sm"), md=4),
+                        dbc.Col(html.Div([html.H2(total_countries, className="text-center"), html.H4("Countries of Acquisitions", className="text-center")], className="p-3 bg-light rounded-3 shadow-sm"), md=4),
+                    ], className="mb-4"),
+                    dbc.Row([dbc.Col(dcc.Graph(figure=fig1), md=6), dbc.Col(dcc.Graph(figure=fig2), md=6)], className="mb-4"),
+                    dbc.Row([dbc.Col(dcc.Graph(figure=fig3), md=6), dbc.Col(dcc.Graph(figure=fig4), md=6)], className="mb-4"),
+                    dbc.Row([dbc.Col(dcc.Graph(figure=fig5), md=6), dbc.Col(dcc.Graph(figure=fig6), md=6)], className="mb-4"),
+                ], fluid=True, className="py-4"),
+            ]),
+            dcc.Tab(label='Analysis per Company', children=[
+                dbc.Container([
+                    html.Div([html.H3("Filter by Parent Company"), dcc.Dropdown(id="pc_acq", options=[{"label": c, "value": c} for c in df_acq['Parent Company'].dropna().unique()], value=df_acq['Parent Company'].dropna().unique()[0], clearable=False)], className="mb-4"),
+                    dbc.Row([dbc.Col(dcc.Graph(id="fig1_filtered"), md=12)], className="mb-4"),
+                    dbc.Row([dbc.Col(dcc.Graph(id="fig5_filtered"), md=6), dbc.Col(dcc.Graph(id="fig6_filtered"), md=6)]),
+                ], fluid=True, className="py-4"),
+            ]),
         ])
-    ])
-])
+    ]
+)
 
+##################### RUN APP ####################################
 if __name__ == '__main__':
     app.run_server(debug=True)
